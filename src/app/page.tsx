@@ -12,6 +12,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [logMessage, setLogMessage] = useState('初始化引擎中...');
+  const [logs, setLogs] = useState<string[]>([]);
 
   const ffmpegRef = useRef<FFmpeg | null>(null);
 
@@ -20,9 +21,10 @@ export default function Home() {
       ffmpegRef.current = new FFmpeg();
     }
     const ffmpeg = ffmpegRef.current;
+
     ffmpeg.on('log', ({ message }) => {
-      // console.log(message);
-      // 只显示关键信息或最后一条日志
+      console.log(message);
+      setLogs(prev => [...prev.slice(-4), message]); // 只保留最后5条
       if (message.includes('frame=')) {
         setLogMessage('正在处理...');
       }
@@ -34,6 +36,11 @@ export default function Home() {
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
       });
+
+      // 检查 JXR 支持情况
+      setLogMessage('检查解码器支持...');
+      await ffmpeg.exec(['-decoders']);
+
       setReady(true);
       setLogMessage('引擎就绪');
     } catch (e: any) {
@@ -87,7 +94,19 @@ export default function Home() {
       setLogMessage('完成！');
     } catch (err: any) {
       console.error(err);
-      setError('转换过程中发生错误: ' + err.message);
+      let errorMessage = '未知错误';
+      if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (typeof err === 'object') {
+        try {
+          errorMessage = JSON.stringify(err);
+        } catch {
+          errorMessage = '无法序列化的错误对象';
+        }
+      }
+      setError('转换失败: ' + errorMessage);
     } finally {
       setIsConverting(false);
     }
@@ -137,7 +156,13 @@ export default function Home() {
           {error && (
             <div className="bg-red-50 text-red-500 p-4 rounded-lg text-sm text-center flex flex-col items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
-              {error}
+              <p className="font-bold">{error}</p>
+              <div className="text-xs text-left bg-red-100 p-2 rounded w-full overflow-auto max-h-32 font-mono">
+                <p className="mb-1">最近日志:</p>
+                {logs.map((log, i) => (
+                  <div key={i}>{log}</div>
+                ))}
+              </div>
             </div>
           )}
 
