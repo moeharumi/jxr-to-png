@@ -95,6 +95,8 @@ export default function Home() {
     } catch (err: any) {
       console.error(err);
       let errorMessage = '未知错误';
+      let isCodecError = false;
+
       if (typeof err === 'string') {
         errorMessage = err;
       } else if (err instanceof Error) {
@@ -106,7 +108,18 @@ export default function Home() {
           errorMessage = '无法序列化的错误对象';
         }
       }
-      setError('转换失败: ' + errorMessage);
+
+      // 检测特定的编解码器错误
+      if (
+        errorMessage.includes('Invalid data found when processing input') ||
+        errorMessage.includes('Decoder not found') ||
+        logs.some(l => l.includes('Invalid data') || l.includes('Decoder not found'))
+      ) {
+        errorMessage = '当前 FFmpeg 引擎不支持 JXR 解码。这是因为官方默认的 ffmpeg.wasm 构建为了减小体积，未包含 libjxr 库。';
+        isCodecError = true;
+      }
+
+      setError(errorMessage);
     } finally {
       setIsConverting(false);
     }
@@ -157,7 +170,18 @@ export default function Home() {
             <div className="bg-red-50 text-red-500 p-4 rounded-lg text-sm text-center flex flex-col items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
               <p className="font-bold">{error}</p>
-              <div className="text-xs text-left bg-red-100 p-2 rounded w-full overflow-auto max-h-32 font-mono">
+              
+              {error.includes('不支持 JXR') && (
+                <div className="text-xs text-left bg-yellow-50 text-yellow-800 p-3 rounded w-full border border-yellow-200">
+                   <strong>解决方案：</strong><br/>
+                   目前的通用版 WebAssembly 引擎缺失 JXR 解码器。您需要：<br/>
+                   1. 自行编译包含 <code className="bg-yellow-100 px-1 rounded">--enable-libjxr</code> 的 ffmpeg.wasm<br/>
+                   2. 将编译好的 core.js 和 core.wasm 放入 public 目录<br/>
+                   3. 修改代码指向本地文件
+                </div>
+              )}
+
+              <div className="text-xs text-left bg-red-100 p-2 rounded w-full overflow-auto max-h-32 font-mono mt-2">
                 <p className="mb-1">最近日志:</p>
                 {logs.map((log, i) => (
                   <div key={i}>{log}</div>
