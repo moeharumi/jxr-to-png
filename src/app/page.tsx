@@ -13,9 +13,12 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [logMessage, setLogMessage] = useState('初始化引擎中...');
 
-  const ffmpegRef = useRef(new FFmpeg());
+  const ffmpegRef = useRef<FFmpeg | null>(null);
 
   const load = async () => {
+    if (!ffmpegRef.current) {
+      ffmpegRef.current = new FFmpeg();
+    }
     const ffmpeg = ffmpegRef.current;
     ffmpeg.on('log', ({ message }) => {
       // console.log(message);
@@ -60,6 +63,8 @@ export default function Home() {
     setLogMessage('开始读取文件...');
 
     const ffmpeg = ffmpegRef.current;
+    if (!ffmpeg) return;
+
     // 使用简单的文件名以避免特殊字符问题
     const inputName = 'input.jxr';
     const outputName = 'output.png';
@@ -75,7 +80,7 @@ export default function Home() {
       const data = await ffmpeg.readFile(outputName);
 
       const url = URL.createObjectURL(
-        new Blob([(data as Uint8Array).buffer], { type: 'image/png' })
+        new Blob([data as any], { type: 'image/png' })
       );
 
       setConvertedUrl(url);
