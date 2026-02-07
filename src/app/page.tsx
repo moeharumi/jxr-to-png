@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Upload, Download, Loader2, Image as ImageIcon, AlertTriangle } from 'lucide-react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { ImageMagick, initializeImageMagick, MagickFormat } from '@imagemagick/magick-wasm';
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -13,10 +14,29 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [logMessage, setLogMessage] = useState('初始化引擎中...');
   const [logs, setLogs] = useState<string[]>([]);
+  const [useMagick, setUseMagick] = useState(false);
 
   const ffmpegRef = useRef<FFmpeg | null>(null);
 
   const load = async () => {
+    // 优先尝试加载 ImageMagick (因为它可能支持 JXR，且体积较小)
+    try {
+        setLogMessage('加载 ImageMagick...');
+        const wasmLocation = new URL('@imagemagick/magick-wasm/magick.wasm', import.meta.url).href;
+        // 注意：next.js webpack 配置可能需要调整才能正确处理 .wasm 文件
+        // 这里暂时假设能直接加载，或者我们需要手动 fetch
+        await initializeImageMagick();
+        setUseMagick(true);
+        setReady(true);
+        setLogMessage('ImageMagick 引擎就绪');
+        console.log('ImageMagick loaded, formats:', ImageMagick.supportedFormats);
+        return;
+    } catch (e) {
+        console.warn('ImageMagick load failed, falling back to FFmpeg', e);
+        setLogs(prev => [...prev, `ImageMagick load failed: ${e}`]);
+    }
+
+    // Fallback to FFmpeg
     if (!ffmpegRef.current) {
       ffmpegRef.current = new FFmpeg();
     }
@@ -77,21 +97,42 @@ export default function Home() {
     const outputName = 'output.png';
 
     try {
-      await ffmpeg.writeFile(inputName, await fetchFile(file));
-
-      setLogMessage('正在转码 (ffmpeg)...');
-      // 执行转换
-      await ffmpeg.exec(['-i', inputName, outputName]);
-
-      setLogMessage('生成 PNG...');
-      const data = await ffmpeg.readFile(outputName);
-
-      const url = URL.createObjectURL(
-        new Blob([data as any], { type: 'image/png' })
-      );
-
-      setConvertedUrl(url);
-      setLogMessage('完成！');
+      if (useMagick) {
+          setLogMessage('正在转码 (ImageMagick)...');
+          const arrayBuffer = await file.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          
+          // 由于 ImageMagick.read 是同步或回调风格，我们需要包装一下
+           await new Promise<void>((resolve, reject) => {
+              try {
+                  ImageMagick.read(uint8Array, (image) => {
+                      image.write(MagickFormat.Png, (data) => {
+                          const url = URL.createObjectURL(
+                              new Blob([data], { type: 'image/png' })
+                          );
+                          setConvertedUrl(url);
+                          resolve();
+                      });
+                  });
+              } catch (e) {
+                  reject(e);
+              }
+           });
+          
+          setLogMessage('完成！');
+      } else {
+          // FFmpeg logic
+          await ffmpeg.writeFile(inputName, await fetchFile(file));
+          setLogMessage('正在转码 (ffmpeg)...');
+          await ffmpeg.exec(['-i', inputName, outputName]);
+          setLogMessage('生成 PNG...');
+          const data = await ffmpeg.readFile(outputName);
+          const url = URL.createObjectURL(
+            new Blob([data as any], { type: 'image/png' })
+          );
+          setConvertedUrl(url);
+          setLogMessage('完成！');
+      }
     } catch (err: any) {
       console.error(err);
       let errorMessage = '未知错误';
