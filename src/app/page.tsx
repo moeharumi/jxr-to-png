@@ -35,7 +35,7 @@ export default function Home() {
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
       });
       setReady(true);
-      setLogMessage('引擎就绪 (≧∇≦)ﾉ');
+      setLogMessage('引擎就绪');
     } catch (e: any) {
       console.error(e);
       setError('无法加载转换引擎，请检查网络连接 (需要访问 unpkg.com) 或使用最新版 Chrome/Edge 浏览器。');
@@ -84,7 +84,7 @@ export default function Home() {
       );
 
       setConvertedUrl(url);
-      setLogMessage('完成！✨');
+      setLogMessage('完成！');
     } catch (err: any) {
       console.error(err);
       setError('转换过程中发生错误: ' + err.message);
@@ -102,8 +102,8 @@ export default function Home() {
         </h1>
 
         <div className="text-center mb-6 space-y-1">
-          <p className="text-lg font-bold text-pink-400">✨ 华得府专用转换器 ✨</p>
-          <p className="text-xs text-pink-300 italic">应猴哥要求开发 🫡</p>
+          <p className="text-lg font-bold text-pink-400">华得府专用转换器</p>
+          <p className="text-xs text-pink-300 italic">应猴哥要求开发</p>
         </div>
 
         <p className="text-center text-pink-300 text-sm mb-8 font-medium">
@@ -152,14 +152,14 @@ export default function Home() {
                 {logMessage}
               </>
             ) : (
-              "开始转换 ✨"
+              "开始转换"
             )}
           </button>
 
           {convertedUrl && (
             <div className="animate-fade-in text-center space-y-4 pt-4 border-t border-pink-100">
               <div className="bg-green-50 text-green-600 p-3 rounded-lg font-medium flex items-center justify-center gap-2">
-                <span>转换成功！(≧∇≦)ﾉ</span>
+                <span>转换成功！</span>
               </div>
 
               {/* Preview Image */}
