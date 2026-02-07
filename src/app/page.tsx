@@ -181,8 +181,7 @@ export default function Home() {
       </div>
 
       <footer className="mt-8 text-pink-300 text-sm text-center">
-        Powered by Next.js & FFmpeg.wasm<br />
-        完全在浏览器本地运行，保护您的隐私
+        Powered by Next.js & FFmpeg.wasm
       </footer>
     </main>
   );
