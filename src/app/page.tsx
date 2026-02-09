@@ -21,19 +21,18 @@ export default function Home() {
   const load = async () => {
     // 优先尝试加载 ImageMagick (因为它可能支持 JXR，且体积较小)
     try {
-        setLogMessage('加载 ImageMagick...');
-        const wasmUrl = new URL('@imagemagick/magick-wasm/magick.wasm', import.meta.url);
-        // 注意：next.js webpack 配置可能需要调整才能正确处理 .wasm 文件
-        // 这里暂时假设能直接加载，或者我们需要手动 fetch
-        await initializeImageMagick(wasmUrl);
-        setUseMagick(true);
-        setReady(true);
-        setLogMessage('ImageMagick 引擎就绪');
-        console.log('ImageMagick loaded, formats:', Magick.supportedFormats);
-        return;
+      setLogMessage('加载 ImageMagick...');
+      const magickBaseURL = 'https://unpkg.com/@imagemagick/magick-wasm@0.0.38/dist';
+      const magickWasmUrl = await toBlobURL(`${magickBaseURL}/magick.wasm`, 'application/wasm');
+      await initializeImageMagick(magickWasmUrl);
+      setUseMagick(true);
+      setReady(true);
+      setLogMessage('ImageMagick 引擎就绪');
+      console.log('ImageMagick loaded, formats:', Magick.supportedFormats);
+      return;
     } catch (e) {
-        console.warn('ImageMagick load failed, falling back to FFmpeg', e);
-        setLogs(prev => [...prev, `ImageMagick load failed: ${e}`]);
+      console.warn('ImageMagick load failed, falling back to FFmpeg', e);
+      setLogs(prev => [...prev, `ImageMagick load failed: ${e}`]);
     }
 
     // Fallback to FFmpeg
@@ -89,9 +88,6 @@ export default function Home() {
     setError(null);
     setLogMessage('开始读取文件...');
 
-    const ffmpeg = ffmpegRef.current;
-    if (!ffmpeg) return;
-
     // 使用简单的文件名以避免特殊字符问题
     const inputName = 'input.jxr';
     const outputName = 'output.png';
@@ -121,22 +117,24 @@ export default function Home() {
           
           setLogMessage('完成！');
       } else {
-          // FFmpeg logic
-          await ffmpeg.writeFile(inputName, await fetchFile(file));
-          setLogMessage('正在转码 (ffmpeg)...');
-          await ffmpeg.exec(['-i', inputName, outputName]);
-          setLogMessage('生成 PNG...');
-          const data = await ffmpeg.readFile(outputName);
-          const url = URL.createObjectURL(
-            new Blob([data as any], { type: 'image/png' })
-          );
-          setConvertedUrl(url);
-          setLogMessage('完成！');
+        const ffmpeg = ffmpegRef.current;
+        if (!ffmpeg) {
+          throw new Error('FFmpeg 引擎未正确初始化');
+        }
+        await ffmpeg.writeFile(inputName, await fetchFile(file));
+        setLogMessage('正在转码 (ffmpeg)...');
+        await ffmpeg.exec(['-i', inputName, outputName]);
+        setLogMessage('生成 PNG...');
+        const data = await ffmpeg.readFile(outputName);
+        const url = URL.createObjectURL(
+          new Blob([data as any], { type: 'image/png' })
+        );
+        setConvertedUrl(url);
+        setLogMessage('完成！');
       }
     } catch (err: any) {
       console.error(err);
       let errorMessage = '未知错误';
-      let isCodecError = false;
 
       if (typeof err === 'string') {
         errorMessage = err;
@@ -157,7 +155,6 @@ export default function Home() {
         logs.some(l => l.includes('Invalid data') || l.includes('Decoder not found'))
       ) {
         errorMessage = '当前 FFmpeg 引擎不支持 JXR 解码。这是因为官方默认的 ffmpeg.wasm 构建为了减小体积，未包含 libjxr 库。';
-        isCodecError = true;
       }
 
       setError(errorMessage);
