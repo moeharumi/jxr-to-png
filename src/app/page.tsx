@@ -18,13 +18,34 @@ export default function Home() {
 
   const ffmpegRef = useRef<FFmpeg | null>(null);
 
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`${label}超时`));
+      }, ms);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
+  };
+
   const load = async () => {
     // 优先尝试加载 ImageMagick (因为它可能支持 JXR，且体积较小)
     try {
       setLogMessage('加载 ImageMagick...');
       const magickBaseURL = 'https://unpkg.com/@imagemagick/magick-wasm@0.0.38/dist';
-      const magickWasmUrl = await toBlobURL(`${magickBaseURL}/magick.wasm`, 'application/wasm');
-      await initializeImageMagick(magickWasmUrl);
+      const magickWasmUrl = await withTimeout(
+        toBlobURL(`${magickBaseURL}/magick.wasm`, 'application/wasm'),
+        8000,
+        '下载 magick.wasm'
+      );
+      await withTimeout(initializeImageMagick(magickWasmUrl), 8000, '初始化 ImageMagick');
       setUseMagick(true);
       setReady(true);
       setLogMessage('ImageMagick 引擎就绪');
@@ -33,6 +54,7 @@ export default function Home() {
     } catch (e) {
       console.warn('ImageMagick load failed, falling back to FFmpeg', e);
       setLogs(prev => [...prev, `ImageMagick load failed: ${e}`]);
+      setLogMessage('ImageMagick 加载失败，尝试 FFmpeg...');
     }
 
     // Fallback to FFmpeg
